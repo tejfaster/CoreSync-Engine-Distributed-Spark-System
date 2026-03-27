@@ -3,11 +3,9 @@ def split_by_region(flights):
     asia = []
 
     for flight in flights:
-        if flight is None:
-            continue
 
-        longitude = flight[5]
-        latitude = flight[6]
+        longitude = flight.get("longitude")
+        latitude = flight.get("latitude")
 
         # skip if missing
         if longitude is None or latitude is None:
