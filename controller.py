@@ -1,53 +1,97 @@
-from multiprocessing import Process, cpu_count
-# from src.pipeline.asia_pipeline import run_asia_pipeline
-# from src.pipeline.eu_pipeline import run_eu_pipeline
-from src.ingestion.flight_api import fetch_flight_data
-from src.processing.region_split import split_by_region
+import random
+import time
+from multiprocessing import Process, cpu_count , Queue
+from src.ingestion.stock_api import fetch_stock_data
 from src.pipeline.region_pipeline import start_job
+from src.queue.persistent_queue import write_batch, clear_queue
 
-def clean_data(data):
-    return{
-        "icao24":str(data[0]),
-        "callsign":str(data[1]).strip() if data[1] else None,
-        "country":str(data[2]),
-        "longitude":float(data[5]) if data[5] is not None else None,
-        "latitude":float(data[6]) if data[6] is not None else None
-    }
+INTERVAL = 30
+USA_STOCKS = ["AAPL","MSFT","GOOGL","TSLA","AMZW"] 
+EU_STOCKS = ["SAP.DE","SIE.DE","BMW.DE","AIR.PA","OR.PA"]
+
+# Initial Start of work
+# def start_workers(eu_core,asia_core,eu_queue,asia_queue):
+#     eu_process = Process(target=start_job,args=(eu_core,"EU",eu_queue))
+#     asia_process = Process(target=start_job,args=(asia_core,"ASIA",asia_queue))
+
+#     eu_process.start()
+#     asia_process.start()
+
+#     return eu_process,asia_process
+
+# Restarting worker if failed
+# def restart_worker(process, region, cores, queue):
+#     print(f"[WARING] {region} worker crashed. Restarting...")
+
+#     new_job = Process(target=start_job, args=(cores,region,queue))
+#     new_job.start()
+
+#     return new_job
+
+# Safe fetch with Backoff 
+def safe_fetch():
+    try:
+        return fetch_flight_data()
+    except Exception as e:
+        if "429" in str(e):
+            print("Rate limit hit! Cooling down 60s...")
+            time.sleep(60)
+        else:
+            print(f"Fetch error:{e}")
+            time.sleep(10)
+
+        return []    
 
 if __name__ == "__main__":
+    # cores = cpu_count()
+    # usable_cores = cores - 2
 
-    data = fetch_flight_data()
-    cleaned_data = [clean_data(item) for item in data]
-    eu,asia = split_by_region(cleaned_data)
-    total_data_length = len(eu) + len(asia)
-    # eu_data_per = len(eu)/(total_data_length / 100)
-   
-    cores = cpu_count()
-    MIN_CORES = 2
-    usable_cores = cores - MIN_CORES
-    MAX_CORES = usable_cores - MIN_CORES
+    # eu_core = usable_cores // 2
+    # asia_core = usable_cores - eu_core
 
-    eu_core = int((len(eu) / total_data_length) * usable_cores)
-    eu_core =  min(MAX_CORES,max(MIN_CORES,eu_core))
-    asia_core = usable_cores - eu_core
-    eu_process = Process(target=start_job,args=(eu_core,"EU",eu))
-    asia_process = Process(target=start_job,args=(asia_core,"ASIA",asia))
+    # eu_data = Queue()
+    # asia_data = Queue()
+    
+    #start parallel jobs 
+    # eu_job,asia_job = start_workers(eu_core,asia_core,eu_data,asia_data)
+    print("Starting CoreSync Persistent Streaming System...")
 
-    # eu_process = Process(target=run_eu_pipeline)
-    # asia_process = Process(target=run_asia_pipeline)
+    last_usa_data = []
+    last_eu_data =[]
 
-    eu_process.start()
-    asia_process.start()
+    while True:
+        print("\n=== NEW BATCH ===")
+        
+        # USA Data
+        usa_data = fetch_stock_data(USA_STOCKS,"USA")
 
-    eu_process.join()
-    asia_process.join()
+        if usa_data:
+            last_usa_data = usa_data
+        else:
+            print("Using last USA data...")
+            usa_data = last_usa_data    
 
-    print("Both pipeline finished.")
+        # EU Data
+        eu_data = fetch_stock_data(EU_STOCKS,"EU")
 
-    print("data length: ",total_data_length)
-    # print("Eu data per length: ",eu_data_per)
-    print("Cores EU: ",eu_core)
-    print("Cores ASIA: ",asia_core)
-    print("data of eu: ",len(eu))
-    print("data of asia: ",len(asia))
-    print("cores in system: ",cores)
+        if eu_data:
+            last_eu_data = eu_data
+        else:
+            print("Using last EU data...")
+            eu_data = last_eu_data
+
+        #Persistent Queue
+        if usa_data:
+            write_batch("USA",usa_data)
+
+        if eu_data:
+            write_batch("EU",eu_data)
+
+        print(f"USA records: {len(usa_data)} | EU records: {len(eu_data)}")
+
+        # Sleep (with jitter)
+        sleep_time = INTERVAL + random.randint(1,5)
+        print(f"Sleeping {sleep_time}s...\n")
+
+        time.sleep(sleep_time)
+  

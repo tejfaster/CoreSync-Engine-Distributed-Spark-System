@@ -11,3 +11,4 @@ def fetch_flight_data():
     except Exception as e:
         print("Error fetching flight data:", e)
         return []
+
