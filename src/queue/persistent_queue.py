@@ -1,7 +1,7 @@
 import json
 import os
 
-BASE_PATH = "data/raw_data"
+BASE_PATH = "data/queue"
 
 def write_batch(topic,data):
     os.makedirs(os.path.dirname(BASE_PATH),exist_ok=True)
