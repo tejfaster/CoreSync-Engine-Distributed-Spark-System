@@ -2,7 +2,7 @@ import random
 from multiprocessing import cpu_count
 
 TARGET = 100
-TOTAL_DATA = 200
+TOTAL_DATA = 4000
 RUNS = 4
 TOTAL_CORES = cpu_count()
 USABLE_CORES = TOTAL_CORES - 2

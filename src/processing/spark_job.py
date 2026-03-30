@@ -1,7 +1,7 @@
 import sys
 import os
 from pyspark.sql import SparkSession
-from pyspark.sql.functions import current_timestamp
+from pyspark.sql.functions import current_timestamp , concat_ws
 
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__),"../..")))
@@ -16,6 +16,7 @@ def start_spark(cores,region):
         .appName(region)\
         .master(f"local[{cores}]") \
         .config("spark.sql.shuffle.partitions",cores * 2) \
+        .config("spark.ui.enabled", "false") \
         .getOrCreate()
 
     return spark
@@ -63,9 +64,13 @@ def main():
 
     # processing 
     df = df.withColumn("Processed_at",current_timestamp())
-
+    df = df.withColumn("record_id",concat_ws("_","symbol","timestamp"))
+    df = df.dropDuplicates(["record_id"])
     # Repartition(simulate cores)
     df = df.repartition(max(1,cores * 2))
+
+    df.write.mode("append").partitionBy("region") \
+    .parquet("data/silver/")
 
     print("Partitions:",df.rdd.getNumPartitions())
 
