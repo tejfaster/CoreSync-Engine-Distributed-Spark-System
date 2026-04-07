@@ -1,25 +1,27 @@
 import sys
 import os
 from pyspark.sql import SparkSession
-from pyspark.sql.functions import current_timestamp , concat_ws
+from pyspark.sql.functions import current_timestamp , concat_ws, col
 
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__),"../..")))
 from src.queue.offset_manager import update_offset
 from src.queue.reader import read_new_batch
+from src.spark.jobs import start_spark
 
-
-def start_spark(cores,region):
-    cores = max(1,cores)
+# def start_spark(cores,region):
+#     cores = max(1,cores)
     
-    spark = SparkSession.builder \
-        .appName(region)\
-        .master(f"local[{cores}]") \
-        .config("spark.sql.shuffle.partitions",cores * 2) \
-        .config("spark.ui.enabled", "false") \
-        .getOrCreate()
+#     spark = SparkSession.builder \
+#         .appName(region)\
+#         .master(f"local[{cores}]") \
+#         .config("spark.sql.shuffle.partitions",cores * 2) \
+#         .config("spark.ui.enabled", "false") \
+#         .config("spark.driver.host", "127.0.0.1") \
+#         .config("spark.driver.bindAddress", "127.0.0.1") \
+#         .getOrCreate()
 
-    return spark
+#     return spark
 
 def main():
 
@@ -65,6 +67,10 @@ def main():
     # processing 
     df = df.withColumn("Processed_at",current_timestamp())
     df = df.withColumn("record_id",concat_ws("_","symbol","timestamp"))
+    df = df.withColumn("price_2x",col('price') * 2)
+    df = df.withColumn("price_4x",col('price') * 4)
+    df = df.withColumn("price_8x",col('price') * 8)
+    df = df.withColumn("price_16x",col('price') * 16)
     df = df.dropDuplicates(["record_id"])
     # Repartition(simulate cores)
     df = df.repartition(max(1,cores * 2))

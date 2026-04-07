@@ -8,7 +8,7 @@ def run_jobs(jobs):
     # starting job
     for job in jobs:
         p = subprocess.Popen([
-            "python","src/processing/spark_job.py",
+            "python","src/processing/silver_layer.py",
             job["region"],
             str(job["load"]),
             str(job["cores"])
@@ -23,7 +23,6 @@ def run_jobs(jobs):
 
 
 def run_gold(jobs):
-
     print("\n Starting parallel Gold jobs...\n")
 
     processes = []
@@ -31,7 +30,7 @@ def run_gold(jobs):
     # starting job
     for job in jobs:
         p = subprocess.Popen([
-            "python","src/processing/spark_job.py",
+            "python","src/processing/gold_layer.py",
             job["region"],
             str(job["load"]),
             str(job["cores"])
